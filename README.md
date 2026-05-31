@@ -34,19 +34,24 @@ Copy-Item .env.example .env
 # One-time: log in manually; saves the session
 python login.py
 
-# Then: search (session is reused, no password needed)
-python search.py "wireless mouse"
+# Then: check a price (session is reused, no password needed)
+python price_check.py "wireless mouse"
+python price_check.py "wireless mouse" --top 5      # more results
+python price_check.py "wireless mouse" --json       # machine-readable
+python price_check.py --url "https://www.amazon.com/dp/B0XXXXXXX"
 ```
 
-If a search later says the session is invalid/expired, just re-run
+If a check later says the session is invalid/expired, just re-run
 `python login.py`.
+
+> Reminder: always use the existing `.venv` (activate it); don't recreate it.
 
 ## Files
 
 | File              | Purpose                                            |
 | ----------------- | -------------------------------------------------- |
 | `login.py`        | One-time manual login; saves `auth_state.json`.    |
-| `search.py`       | Loads the session and runs a search (skeleton).    |
+| `price_check.py`  | Searches/loads a product and reports its price.    |
 | `.env.example`    | Template config — copy to `.env`. No secrets.      |
 | `.gitignore`      | Keeps secrets, sessions, logs out of git.          |
-| `CLAUDE.md`       | Security & workflow rules for this repo.            |
+| `CLAUDE.md`       | Project instructions, security & workflow rules.   |
