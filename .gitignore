@@ -1,0 +1,44 @@
+# Secrets & credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# Browser session / auth state (these ARE secrets)
+auth_state.json
+storage_state.json
+cookies.json
+*.cookies
+browser_profile/
+user_data/
+.playwright/
+
+# Logs, screenshots, data dumps (may contain personal data)
+logs/
+*.log
+screenshots/
+*.png
+*.har
+data/
+*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.vs/
