@@ -10,9 +10,14 @@ Shops available: **Amazon**, **Amazon Fresh** (groceries), **Amazon Now**
 login (no second sign-in) and are **delivery-location gated**. Flipkart's search
 is public, so price-checking it needs no login.
 
-**Compare All:** the GUI has a *Compare All* button that searches the same item
-across the general-catalog platforms (Amazon, Flipkart, …) and shows the results
-**side by side**, one column per platform, each with image, price and rating.
+**Log in to All:** the GUI's *Log in to All* button signs you in to every
+platform that needs a login, one at a time (a browser opens for each; it saves
+automatically). Shops sharing a login (Amazon/Fresh/Now) are done once, and
+login-free shops (Flipkart) are skipped.
+
+**Compare All:** the *Compare All* button searches the same item across the
+general-catalog platforms (Amazon, Flipkart, …) and shows the results **side by
+side**, one column per platform, each with image, price and rating.
 
 > Security rules for this repo live in [CLAUDE.md](CLAUDE.md). In short: no
 > passwords in code, secrets via git-ignored files only, no personal data in

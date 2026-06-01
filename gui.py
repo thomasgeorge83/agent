@@ -97,6 +97,8 @@ class PriceCheckerApp:
         self.compare_btn.pack(side="left", padx=(8, 0))
         self.login_btn = ttk.Button(btns, text="Log in", command=self.start_login)
         self.login_btn.pack(side="left", padx=(8, 0))
+        self.login_all_btn = ttk.Button(btns, text="Log in to All", command=self.start_login_all)
+        self.login_all_btn.pack(side="left", padx=(8, 0))
         ttk.Button(btns, text="Clear", command=self.clear_results).pack(side="left", padx=(8, 0))
 
         # Row 4: scrollable results area (cards)
@@ -150,6 +152,7 @@ class PriceCheckerApp:
         self.check_btn.configure(state=state)
         self.compare_btn.configure(state=state)
         self.login_btn.configure(state=state)
+        self.login_all_btn.configure(state=state)
 
     # ---- price check ----------------------------------------------------
     def start_check(self) -> None:
@@ -424,6 +427,58 @@ class PriceCheckerApp:
         except Exception as exc:
             self.queue.put(("error", f"Could not start login: {exc}"))
 
+    # ---- log in to all platforms ---------------------------------------
+    def start_login_all(self) -> None:
+        if self.worker and self.worker.is_alive():
+            return
+        # One login per distinct session that needs it. Shops sharing a session
+        # (Amazon/Fresh/Now) are logged in once; login-free shops (Flipkart) and
+        # already-logged-in sessions are skipped.
+        todo: list[tuple[str, str]] = []  # (shop_name, label)
+        seen_sessions: set[str] = set()
+        for s in self.shops:
+            if not s.requires_login:
+                continue
+            if s.session_name in seen_sessions:
+                continue
+            seen_sessions.add(s.session_name)
+            if not shop_has_session(s.name):
+                todo.append((s.name, s.label))
+        if not todo:
+            self.status.set("All platforms are already logged in (or need no login).")
+            return
+        labels = ", ".join(lbl for _, lbl in todo)
+        if not messagebox.askyesno(
+            "Log in to All",
+            f"You'll sign in to each of these, one at a time:\n\n{labels}\n\n"
+            "A browser opens for each — sign in and it saves automatically, then "
+            "the next one opens. Continue?",
+        ):
+            return
+        self._busy(True)
+        self.worker = threading.Thread(target=self._do_login_all, args=(todo,), daemon=True)
+        self.worker.start()
+
+    def _do_login_all(self, todo: list) -> None:
+        done = []
+        for shop_name, label in todo:
+            self.queue.put(("status", f"Log in to {label}: a browser is opening…"))
+            try:
+                exe = sys.executable
+                if os.name == "nt" and os.path.basename(exe).lower() == "pythonw.exe":
+                    console_exe = os.path.join(os.path.dirname(exe), "python.exe")
+                    if os.path.exists(console_exe):
+                        exe = console_exe
+                creationflags = subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0
+                proc = subprocess.run(
+                    [exe, os.path.join(HERE, "login.py"), "--shop", shop_name],
+                    creationflags=creationflags,
+                )
+                done.append(f"{label}: {'ok' if proc.returncode == 0 else 'skipped/failed'}")
+            except Exception as exc:
+                done.append(f"{label}: error ({exc})")
+        self.queue.put(("login_all_done", done))
+
     # ---- queue pump -----------------------------------------------------
     def _drain_queue(self) -> None:
         try:
@@ -478,6 +533,14 @@ class PriceCheckerApp:
                     self._set_session_status()
                     self.status.set("Login saved. You can check prices now.")
                     self._busy(False)
+                elif kind == "status":
+                    self.status.set(str(payload))
+                elif kind == "login_all_done":
+                    self._set_session_status()
+                    self._busy(False)
+                    summary = "\n".join(payload)
+                    self.status.set("Finished logging in to all platforms.")
+                    messagebox.showinfo("Log in to All", f"Done:\n\n{summary}")
                 elif kind == "error":
                     ttk.Label(self.cards, text=str(payload), wraplength=600,
                               foreground="#a00").pack(anchor="w", padx=4, pady=4)
