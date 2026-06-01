@@ -36,7 +36,15 @@ def browser_page(shop_name: str, headless: bool, use_session: bool = True):
     """
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
-        kwargs = {}
+        kwargs = {
+            # A normal desktop user-agent/viewport so sites serve the standard
+            # page rather than a stripped-down or bot-flagged variant.
+            "user_agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "viewport": {"width": 1366, "height": 850},
+        }
         path = session_path(shop_name)
         if use_session and os.path.exists(path):
             kwargs["storage_state"] = path

@@ -128,9 +128,22 @@ class BigBasketShop(_GroceryShop):
         url = f"{self.base_url}{self.search_path}{query.replace(' ', '%20')}"
         page.goto(url, wait_until="domcontentloaded")
         self.check_blocked(page)
-        page.wait_for_timeout(5000)
+        page.wait_for_timeout(6000)
         self._assert_serviceable(page)
-        return self._parse_results(page, top)
+        products = self._parse_results(page, top)
+        if not products:
+            # BigBasket renders its catalog client-side and tends to serve an
+            # empty shell to automated browsers (no product nodes at all), even
+            # when logged in with a serviceable address. Distinguish that from a
+            # genuine no-match so the UI can explain it.
+            if page.locator("a[href*='/pd/']").count() == 0:
+                raise BlockedBySite(
+                    "BigBasket did not return any products to the automated "
+                    "browser — it appears to block automation. Searching it this "
+                    "way isn't currently supported; use the BigBasket app/site "
+                    "directly. The other platforms still compare normally."
+                )
+        return products
 
     def _parse_results(self, page, top: int) -> list[Product]:
         # BigBasket product pages are under /pd/; cards link there. Selectors are

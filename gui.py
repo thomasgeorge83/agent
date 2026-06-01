@@ -309,9 +309,10 @@ class PriceCheckerApp:
     def start_login_all(self) -> None:
         if self.worker and self.worker.is_alive():
             return
-        # One login per distinct session that needs it. Shops sharing a session
-        # (e.g. Amazon Fresh uses the Amazon session) are logged in once;
-        # login-free shops and already-logged-in sessions are skipped.
+        # One login per distinct session. Shops sharing a session (e.g. Amazon
+        # Fresh uses the Amazon session) are offered once. We include shops that
+        # ALREADY have a session too, so you can re-login to fix a stale/partial
+        # one — labelling which are already signed in.
         todo: list[tuple[str, str]] = []  # (shop_name, label)
         seen_sessions: set[str] = set()
         for s in self.shops:
@@ -320,15 +321,16 @@ class PriceCheckerApp:
             if s.session_name in seen_sessions:
                 continue
             seen_sessions.add(s.session_name)
-            if not shop_has_session(s.name):
-                todo.append((s.name, s.label))
+            mark = "  (already logged in — re-login)" if shop_has_session(s.name) else ""
+            todo.append((s.name, f"{s.label}{mark}"))
         if not todo:
-            self.status.set("All platforms are already logged in (or need no login).")
+            self.status.set("No platforms require login.")
             return
-        labels = ", ".join(lbl for _, lbl in todo)
+        labels = "\n  • ".join(lbl for _, lbl in todo)
         if not messagebox.askyesno(
             "Log in to platforms",
-            f"You'll sign in to each of these, one at a time:\n\n{labels}\n\n"
+            "You'll sign in to each of these, one at a time:\n\n  • "
+            f"{labels}\n\n"
             "For each: a browser AND a small console window open. Sign in fully "
             "in the browser, then click the console window and press Enter to "
             "save. The next platform opens after that. Continue?",
