@@ -1,0 +1,49 @@
+"""shopagent — a modular, multi-shop browser-automation toolkit.
+
+Core ideas
+----------
+* A **Shop** (see ``shopagent.shops.base.Shop``) encapsulates everything
+  site-specific: its URL, how to tell you are logged in, and how to perform
+  actions (search, get product, place/modify order). Add a new online shop by
+  subclassing ``Shop`` and registering it — nothing else needs to change.
+* **Actions** are methods on a Shop. Read-only actions (search, price) are
+  implemented. State-changing actions (place/modify/cancel order) default to
+  refusing with ``ActionNotSupported`` until a shop explicitly implements them,
+  and require an explicit confirmation flag, because they spend real money.
+* The session for each shop is created by a one-time manual login and reused;
+  no password is ever typed or stored. See ``shopagent.session``.
+
+Public API is re-exported here for convenience.
+"""
+
+from .errors import (
+    ActionNotSupported,
+    BlockedBySite,
+    SessionExpired,
+    ShopAgentError,
+    UnknownShop,
+)
+from .models import OrderResult, Product
+from .agent import get_product, login, search
+from .render import render_json, render_text
+from .shops import get_shop, list_shops, register_shop
+from .shops.base import Shop
+
+__all__ = [
+    "ActionNotSupported",
+    "BlockedBySite",
+    "SessionExpired",
+    "ShopAgentError",
+    "UnknownShop",
+    "OrderResult",
+    "Product",
+    "get_product",
+    "login",
+    "search",
+    "render_json",
+    "render_text",
+    "get_shop",
+    "list_shops",
+    "register_shop",
+    "Shop",
+]

@@ -8,6 +8,7 @@ secrets/
 
 # Browser session / auth state (these ARE secrets)
 auth_state.json
+auth_state.*.json
 storage_state.json
 cookies.json
 *.cookies
