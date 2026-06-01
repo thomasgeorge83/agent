@@ -30,6 +30,14 @@ Copy-Item .env.example .env
 
 ## Use
 
+### Desktop app (easiest)
+
+Double-click **`Price Checker.bat`** to open the GUI. Type an item, click
+**Check Price**, and see the top matches. First time, click **Log in to Amazon**
+to do the one-time manual sign-in.
+
+### Command line
+
 ```powershell
 # One-time: log in manually; saves the session
 python login.py
@@ -52,6 +60,8 @@ If a check later says the session is invalid/expired, just re-run
 | ----------------- | -------------------------------------------------- |
 | `login.py`        | One-time manual login; saves `auth_state.json`.    |
 | `price_check.py`  | Searches/loads a product and reports its price.    |
+| `gui.py`          | Desktop GUI (Tkinter) wrapping the price checker.  |
+| `Price Checker.bat` | Double-click launcher for the GUI.               |
 | `.env.example`    | Template config — copy to `.env`. No secrets.      |
 | `.gitignore`      | Keeps secrets, sessions, logs out of git.          |
 | `CLAUDE.md`       | Project instructions, security & workflow rules.   |
