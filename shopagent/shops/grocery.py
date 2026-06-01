@@ -50,6 +50,16 @@ class _GroceryShop(Shop):
 
     def _assert_serviceable(self, page) -> None:
         body = (self.text_or_none(page.locator("body")) or "").lower()
+        # Explicit "we don't deliver to your pincode" — distinct from "pick a
+        # location": no amount of selecting will help, the service isn't there.
+        if ("not available in your pincode" in body
+                or "not serviceable" in body
+                or "currently not available" in body):
+            raise BlockedBySite(
+                f"{self.label} does not deliver to your location/pincode, so it "
+                "has no products to compare. (This is a delivery-area limit, not "
+                "an app error.)"
+            )
         if any(w in body for w in _LOCATION_WALL):
             raise BlockedBySite(
                 f"{self.label} needs a serviceable delivery location. Log in and "
