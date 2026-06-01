@@ -41,6 +41,9 @@ class Shop:
     #: Whether a saved login session is required to search. Some sites (e.g.
     #: Flipkart) expose public search, so price-checking works without login.
     requires_login: bool = True
+    #: Hidden shops stay registered (and usable by name) but are left out of the
+    #: UI/CLI shop lists. Lets us keep working code without showing it.
+    hidden: bool = False
 
     @property
     def session_name(self) -> str:

@@ -10,5 +10,6 @@ from .registry import get_shop, list_shops, register_shop
 # Import built-in shops so their @register_shop decorators run.
 from . import amazon  # noqa: F401  (registers Amazon, Amazon Fresh, Amazon Now)
 from . import flipkart  # noqa: F401  (registers FlipkartShop)
+from . import grocery  # noqa: F401  (registers Flipkart Minutes, BigBasket)
 
 __all__ = ["get_shop", "list_shops", "register_shop"]

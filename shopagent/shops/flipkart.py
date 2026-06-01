@@ -30,6 +30,7 @@ _RATING_RE = re.compile(r"(\d\.\d)\s*\(([\d,]+)\)")
 class FlipkartShop(Shop):
     name = "flipkart"
     label = "Flipkart"
+    hidden = True  # regular Flipkart kept working but hidden; UI uses Flipkart Minutes
     base_url = os.environ.get("FLIPKART_URL", "https://www.flipkart.com").rstrip("/")
     requires_login = False  # Flipkart search/pricing is public; login is optional
 

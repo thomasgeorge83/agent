@@ -5,10 +5,12 @@ A modular browser-automation toolkit (Python + Playwright) that signs in to
 checking prices, with order actions stubbed out for future work. The design
 makes adding more shops a one-file job.
 
-Shops available: **Amazon**, **Amazon Fresh** (groceries), **Amazon Now**
-(quick-commerce), and **Flipkart**. Fresh and Now reuse your regular Amazon
-login (no second sign-in) and are **delivery-location gated**. Flipkart's search
-is public, so price-checking it needs no login.
+Shops shown in the UI: **Amazon Fresh**, **Flipkart Minutes**, and **BigBasket**
+— all grocery/quick-commerce and **delivery-location gated** (log in with a
+serviceable address to see products). Amazon Fresh reuses your Amazon login.
+
+Other shops (regular Amazon, Amazon Now, regular Flipkart) remain implemented but
+are hidden from the UI; set ``hidden = False`` on the shop class to show one.
 
 **Log in to All:** the GUI's *Log in to All* button signs you in to every
 platform that needs a login, one at a time (a browser opens for each; it saves

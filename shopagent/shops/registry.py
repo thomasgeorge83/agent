@@ -30,5 +30,8 @@ def get_shop(name: str) -> Shop:
         raise UnknownShop(f"Unknown shop {name!r}. Available: {known}.")
 
 
-def list_shops() -> List[Shop]:
-    return [_REGISTRY[k] for k in sorted(_REGISTRY)]
+def list_shops(include_hidden: bool = False) -> List[Shop]:
+    shops = [_REGISTRY[k] for k in sorted(_REGISTRY)]
+    if include_hidden:
+        return shops
+    return [s for s in shops if not getattr(s, "hidden", False)]

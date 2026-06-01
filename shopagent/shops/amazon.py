@@ -21,6 +21,7 @@ from .registry import register_shop
 class AmazonShop(Shop):
     name = "amazon"
     label = "Amazon"
+    hidden = True  # kept working, but not shown in the UI (per current shop set)
     base_url = os.environ.get("AMAZON_URL", "https://www.amazon.com").rstrip("/")
     #: Where a search starts. Subclasses (e.g. Amazon Now) override this.
     search_url = base_url
@@ -237,6 +238,7 @@ class AmazonNowShop(AmazonShop):
 
     name = "amazon-now"
     label = "Amazon Now"
+    hidden = True  # kept working, but not shown in the UI (per current shop set)
     session_key = "amazon"  # share the regular Amazon session — no second login
     comparable = False  # niche storefront; keep out of the Compare-All view
     base_url = os.environ.get("AMAZON_URL", "https://www.amazon.com").rstrip("/")
@@ -303,8 +305,9 @@ class AmazonFreshShop(AmazonShop):
 
     name = "amazon-fresh"
     label = "Amazon Fresh"
+    hidden = False  # shown in the UI (parent AmazonShop is hidden; Fresh is not)
     session_key = "amazon"  # share the regular Amazon session — no second login
-    comparable = False  # grocery storefront; keep out of the Compare-All view
+    comparable = True  # part of the grocery comparison set
     base_url = os.environ.get("AMAZON_URL", "https://www.amazon.com").rstrip("/")
     search_url = os.environ.get("AMAZON_FRESH_URL", f"{base_url}/fresh").rstrip("/")
 

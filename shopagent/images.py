@@ -16,11 +16,19 @@ import urllib.request
 from typing import Optional
 from urllib.parse import urlparse
 
-# Allowed image hosts (suffix match). Amazon serves images from these.
+# Allowed image hosts (suffix match). Each shop serves images from its own CDN.
 ALLOWED_IMAGE_HOST_SUFFIXES = (
+    # Amazon
     "media-amazon.com",
     "ssl-images-amazon.com",
     "images-amazon.com",
+    # Flipkart
+    "flixcart.com",
+    "fkcdn.com",
+    "img1a.flixcart.com",
+    # BigBasket
+    "bbassets.com",
+    "bigbasket.com",
 )
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB cap
 FETCH_TIMEOUT_SECONDS = 10
