@@ -16,6 +16,14 @@ Core ideas
 Public API is re-exported here for convenience.
 """
 
+# Load .env BEFORE importing shop modules: shops read their storefront URLs
+# (AMAZON_URL etc.) from the environment at import time, so config must be in
+# place first. This makes every entry point (CLI, GUI) pick up .env regardless
+# of its own import order.
+from dotenv import load_dotenv as _load_dotenv
+
+_load_dotenv()
+
 from .errors import (
     ActionNotSupported,
     BlockedBySite,
