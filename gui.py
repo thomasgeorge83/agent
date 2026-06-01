@@ -17,12 +17,14 @@ import sys
 import threading
 import tkinter as tk
 import webbrowser
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from PIL import Image, ImageTk
 
 from shopagent import (
+    add_to_cart,
     BlockedBySite,
+    render_cart,
     SessionExpired,
     ShopAgentError,
     get_product,
@@ -193,6 +195,8 @@ class PriceCheckerApp:
         ttk.Button(actions, text="Details",
                    command=lambda p=product: self.open_details(shop, p)).pack(side="left")
         if product.url:
+            ttk.Button(actions, text="Add to Cart",
+                       command=lambda p=product: self.start_add_to_cart(shop, p)).pack(side="left", padx=(6, 0))
             ttk.Button(actions, text="Open in browser",
                        command=lambda u=product.url: webbrowser.open(u)).pack(side="left", padx=(6, 0))
 
@@ -201,6 +205,41 @@ class PriceCheckerApp:
             data = fetch_image_bytes(url)
             self.queue.put(("thumb", (label, data)))
         threading.Thread(target=work, daemon=True).start()
+
+    # ---- add to cart ----------------------------------------------------
+    def start_add_to_cart(self, shop: str, product) -> None:
+        if self.worker and self.worker.is_alive():
+            self.status.set("Busy — wait for the current action to finish.")
+            return
+        if not product.url:
+            self.status.set("This item has no product link to add.")
+            return
+        # Confirm before changing the cart. This is the deliberate opt-in that
+        # also satisfies the add_to_cart(confirm=True) requirement. It NEVER
+        # places an order — it stops at the cart.
+        ok = messagebox.askyesno(
+            "Add to Cart",
+            f"Add this item to your {self.shop_var.get()} cart?\n\n"
+            f"{product.title[:120]}\nPrice: {product.price or 'not shown'}\n\n"
+            "This only adds it to your cart — it will NOT place an order.",
+        )
+        if not ok:
+            return
+        self._busy(True)
+        self.status.set("Adding to cart…")
+        self.worker = threading.Thread(
+            target=self._do_add_to_cart, args=(shop, product.url), daemon=True
+        )
+        self.worker.start()
+
+    def _do_add_to_cart(self, shop: str, url: str) -> None:
+        try:
+            review = add_to_cart(shop, url, confirm=True, headless=not self.show_browser.get())
+            self.queue.put(("cart", review))
+        except (SessionExpired, BlockedBySite, ShopAgentError) as exc:
+            self.queue.put(("error", str(exc)))
+        except Exception as exc:
+            self.queue.put(("error", f"Unexpected error: {exc}"))
 
     def _set_image(self, label, data, size) -> None:
         if not data:
@@ -330,6 +369,13 @@ class PriceCheckerApp:
                 elif kind == "details_err":
                     loading, msg = payload
                     loading.configure(text=msg)
+                elif kind == "cart":
+                    review = payload
+                    self._busy(False)
+                    self.status.set(
+                        f"Added to cart — {review.item_count} item(s) now in cart. No order placed."
+                    )
+                    messagebox.showinfo("Added to Cart", render_cart(review))
                 elif kind == "login_done":
                     self._set_session_status()
                     self.status.set("Login saved. You can check prices now.")
