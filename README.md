@@ -2,8 +2,13 @@
 
 A modular browser-automation toolkit (Python + Playwright) that signs in to
 **your own** online-shop accounts and works with them — currently searching and
-checking prices, with order actions stubbed out for future work. Amazon is the
-first supported shop; the design makes adding more shops a one-file job.
+checking prices, with order actions stubbed out for future work. The design
+makes adding more shops a one-file job.
+
+Shops available: **Amazon**, **Amazon Fresh** (groceries), and **Amazon Now**
+(quick-commerce). Fresh and Now reuse your regular Amazon login (no second
+sign-in) and are **delivery-location gated** — they only return products where
+the service is available for your account, and otherwise report that clearly.
 
 > Security rules for this repo live in [CLAUDE.md](CLAUDE.md). In short: no
 > passwords in code, secrets via git-ignored files only, no personal data in

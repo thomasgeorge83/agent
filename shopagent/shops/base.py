@@ -23,13 +23,21 @@ from ..session import ACTION_DELAY_SECONDS
 
 
 class Shop:
-    #: Short, unique, lowercase identifier (e.g. "amazon"). Used for the
-    #: session filename and CLI/GUI selection.
+    #: Short, unique, lowercase identifier (e.g. "amazon"). Used for CLI/GUI
+    #: selection and, by default, for the session filename.
     name: str = ""
     #: Human-friendly label shown in the UI.
     label: str = ""
     #: Base URL, no trailing slash.
     base_url: str = ""
+    #: Which saved session to use. Defaults to ``name``; set it to another
+    #: shop's name to share one login across storefronts (e.g. Amazon Now
+    #: reuses the "amazon" session). None = use ``name``.
+    session_key: str = ""
+
+    @property
+    def session_name(self) -> str:
+        return self.session_key or self.name
 
     # ---- small shared helpers (used by subclasses) ---------------------
     @staticmethod

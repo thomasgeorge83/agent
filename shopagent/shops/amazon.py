@@ -22,6 +22,10 @@ class AmazonShop(Shop):
     name = "amazon"
     label = "Amazon"
     base_url = os.environ.get("AMAZON_URL", "https://www.amazon.com").rstrip("/")
+    #: Where a search starts. Subclasses (e.g. Amazon Now) override this.
+    search_url = base_url
+    #: Search box selector used to type the query.
+    search_box = "#twotabsearchtextbox"
 
     def is_logged_in(self, page) -> bool:
         for selector in ("#nav-link-accountList-nav-line-1", "#nav-link-accountList"):
@@ -81,12 +85,12 @@ class AmazonShop(Shop):
         return best
 
     def search(self, page, query: str, top: int) -> list[Product]:
-        page.goto(self.base_url, wait_until="domcontentloaded")
+        page.goto(self.search_url, wait_until="domcontentloaded")
         self.check_blocked(page)
         self.be_polite()
 
-        page.fill("#twotabsearchtextbox", query)
-        page.press("#twotabsearchtextbox", "Enter")
+        page.fill(self.search_box, query)
+        page.press(self.search_box, "Enter")
         try:
             page.wait_for_selector('[data-component-type="s-search-result"]', timeout=15000)
         except PWTimeout:
@@ -219,3 +223,98 @@ class AmazonShop(Shop):
             item_count=len(items),
             note="Item(s) are in your cart. No order has been placed.",
         )
+
+
+@register_shop
+class AmazonNowShop(AmazonShop):
+    """Amazon Now — the fast/quick-commerce storefront.
+
+    Reuses the regular Amazon login (``session_key = "amazon"``) and all of the
+    AmazonShop parsing/cart logic; only the storefront entry point differs.
+    Amazon Now is region-specific (primarily amazon.in); set AMAZON_NOW_URL in
+    your .env to point at the right storefront for your account.
+    """
+
+    name = "amazon-now"
+    label = "Amazon Now"
+    session_key = "amazon"  # share the regular Amazon session — no second login
+    base_url = os.environ.get("AMAZON_URL", "https://www.amazon.com").rstrip("/")
+    search_url = os.environ.get("AMAZON_NOW_URL", f"{base_url}/now").rstrip("/")
+    # Now is a single-page app with its own search box (no #twotabsearchtextbox).
+    search_box = "input[aria-label='Search products']"
+
+    def _dismiss_bottom_sheet(self, page) -> None:
+        """Close the delivery-location pop-up that blocks interaction, if shown."""
+        closer = page.locator("button[aria-label='Close bottom sheet']")
+        if closer.count():
+            try:
+                closer.first.click(force=True, timeout=3000)
+                page.wait_for_timeout(1000)
+            except Exception:
+                pass
+
+    def _assert_available(self, page) -> None:
+        """Raise a clear error if Now isn't serving this location.
+
+        We read only the storefront status text — never the saved addresses or
+        name that this page may also contain.
+        """
+        body = (self.text_or_none(page.locator("body")) or "").lower()
+        if "not available in your area" in body or "store is temporarily unavailable" in body:
+            raise BlockedBySite(
+                "Amazon Now is not available at your delivery location "
+                "(it is a hyperlocal service in select cities). Try regular "
+                "Amazon, or set AMAZON_NOW_URL to a serviceable region."
+            )
+
+    def search(self, page, query: str, top: int) -> list[Product]:
+        page.goto(self.search_url, wait_until="domcontentloaded")
+        self.check_blocked(page)
+        page.wait_for_timeout(2500)
+        self._dismiss_bottom_sheet(page)
+        self._assert_available(page)
+
+        box = page.locator(self.search_box)
+        if not box.count():
+            raise BlockedBySite(
+                "Couldn't find the Amazon Now search box — the storefront may "
+                "be unavailable in your area or its layout changed."
+            )
+        box.first.fill(query)
+        box.first.press("Enter")
+        page.wait_for_timeout(4000)
+        self._assert_available(page)
+        # Product-card parsing for Now is not implemented: the store is
+        # unavailable at this location, so it could not be validated against
+        # real results. Once Now serves your area, add selectors here.
+        return []
+
+
+@register_shop
+class AmazonFreshShop(AmazonShop):
+    """Amazon Fresh — grocery storefront on the regular Amazon site.
+
+    Fresh uses the standard search box and result cards, so it reuses all of
+    AmazonShop's parsing/cart logic; only the storefront entry point differs.
+    Fresh is delivery-location gated: it only returns products when the account
+    has a serviceable Fresh delivery address set.
+    """
+
+    name = "amazon-fresh"
+    label = "Amazon Fresh"
+    session_key = "amazon"  # share the regular Amazon session — no second login
+    base_url = os.environ.get("AMAZON_URL", "https://www.amazon.com").rstrip("/")
+    search_url = os.environ.get("AMAZON_FRESH_URL", f"{base_url}/fresh").rstrip("/")
+
+    def search(self, page, query: str, top: int) -> list[Product]:
+        products = super().search(page, query, top)
+        if not products:
+            body = (self.text_or_none(page.locator("body")) or "").lower()
+            if "not available" in body or "no results" in body:
+                raise BlockedBySite(
+                    "Amazon Fresh returned no products — it is delivery-location "
+                    "gated. Set a serviceable Fresh delivery address on your "
+                    "Amazon account (or set AMAZON_FRESH_URL to a serviceable "
+                    "region), then try again."
+                )
+        return products

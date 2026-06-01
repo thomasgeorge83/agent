@@ -28,9 +28,9 @@ from shopagent import (
     get_product,
     list_shops,
     search,
+    shop_has_session,
 )
 from shopagent.images import fetch_image_bytes
-from shopagent.session import has_session
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 THUMB_SIZE = (96, 96)
@@ -125,7 +125,7 @@ class PriceCheckerApp:
     def _set_session_status(self) -> None:
         shop = self._current_shop()
         label = self.shop_var.get()
-        if shop and has_session(shop):
+        if shop and shop_has_session(shop):
             self.status.set(f"{label}: session found. Ready to check prices.")
         else:
             self.status.set(f"{label}: no session yet — click 'Log in' first.")
@@ -149,7 +149,7 @@ class PriceCheckerApp:
         if not query:
             self.status.set("Enter an item to check.")
             return
-        if not has_session(shop):
+        if not shop_has_session(shop):
             self.status.set(f"{self.shop_var.get()}: no session — click 'Log in' first.")
             return
         self.clear_results()
