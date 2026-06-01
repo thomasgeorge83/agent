@@ -33,16 +33,37 @@ def _require_session(shop) -> None:
         )
 
 
-def login(shop_name: str, headless: bool = False) -> bool:
+def login(shop_name: str, headless: bool = False, wait_for_user=None) -> bool:
     """Open a browser for a one-time manual login; save the session on success.
 
-    Returns True if a signed-in session was saved. No password is stored — only
-    the resulting cookies/local storage. The session is saved under the shop's
-    ``session_name`` (shops can share one login).
+    No password is stored — only the resulting cookies/local storage, saved under
+    the shop's ``session_name`` (shops can share one login).
+
+    Two completion modes:
+    * Shops with reliable ``is_logged_in`` (``auto_login_detection`` True, e.g.
+      Amazon) save automatically once sign-in is detected.
+    * Otherwise (e.g. Flipkart, grocery apps) we cannot reliably detect sign-in,
+      so we wait for the user to confirm. ``wait_for_user`` is a blocking
+      callable (e.g. ``input``) that returns when the user is done; the session
+      is then saved regardless of detection. This avoids closing the browser
+      mid-login. Returns True if a session was saved.
     """
     shop = get_shop(shop_name)
     with browser_page(shop.session_name, headless=headless, use_session=False) as (page, context):
         page.goto(shop.base_url, wait_until="domcontentloaded")
+
+        if not shop.auto_login_detection:
+            # User-confirmed flow. Block until they signal completion, then save
+            # whatever session the browser now holds.
+            if wait_for_user is not None:
+                wait_for_user()
+            else:
+                # No way to ask the user (e.g. headless/automated) — fall back to
+                # a bounded wait so we don't hang forever.
+                time.sleep(min(LOGIN_TIMEOUT_SECONDS, 60))
+            context.storage_state(path=session_path(shop.session_name))
+            return True
+
         deadline = time.time() + LOGIN_TIMEOUT_SECONDS
         confirmed = 0
         while time.time() < deadline:

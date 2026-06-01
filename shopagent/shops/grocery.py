@@ -37,11 +37,16 @@ class _GroceryShop(Shop):
     """Shared helpers for location-gated grocery storefronts."""
 
     requires_login = True
+    # These apps have no reliable logged-in marker we can detect, so don't try
+    # to auto-detect sign-in — the user confirms when done (press Enter). This
+    # prevents the browser from closing before the login is finished.
+    auto_login_detection = False
 
     def is_logged_in(self, page) -> bool:
-        # Best-effort: these apps show account/profile affordances once signed in.
+        # Best-effort only; not used to auto-close the login window because
+        # auto_login_detection is False.
         body = (self.text_or_none(page.locator("body")) or "").lower()
-        return "login" not in body[:400]
+        return "logout" in body or "my account" in body or "your account" in body
 
     def _assert_serviceable(self, page) -> None:
         body = (self.text_or_none(page.locator("body")) or "").lower()

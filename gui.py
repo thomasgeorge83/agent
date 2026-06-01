@@ -329,8 +329,9 @@ class PriceCheckerApp:
         if not messagebox.askyesno(
             "Log in to platforms",
             f"You'll sign in to each of these, one at a time:\n\n{labels}\n\n"
-            "A browser opens for each — sign in and it saves automatically, then "
-            "the next one opens. Continue?",
+            "For each: a browser AND a small console window open. Sign in fully "
+            "in the browser, then click the console window and press Enter to "
+            "save. The next platform opens after that. Continue?",
         ):
             return
         self._busy(True)

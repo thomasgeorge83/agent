@@ -33,6 +33,7 @@ class FlipkartShop(Shop):
     hidden = True  # regular Flipkart kept working but hidden; UI uses Flipkart Minutes
     base_url = os.environ.get("FLIPKART_URL", "https://www.flipkart.com").rstrip("/")
     requires_login = False  # Flipkart search/pricing is public; login is optional
+    auto_login_detection = False  # nav markers are unreliable; user confirms login
 
     def is_logged_in(self, page) -> bool:
         # Flipkart shows the account name in the top nav once signed in; when

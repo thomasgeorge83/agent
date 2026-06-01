@@ -44,6 +44,10 @@ class Shop:
     #: Hidden shops stay registered (and usable by name) but are left out of the
     #: UI/CLI shop lists. Lets us keep working code without showing it.
     hidden: bool = False
+    #: Whether ``is_logged_in`` reliably detects a completed sign-in. When False,
+    #: the login flow waits for the user to confirm (press Enter) instead of
+    #: auto-detecting, so the browser is never closed mid-login.
+    auto_login_detection: bool = True
 
     @property
     def session_name(self) -> str:
