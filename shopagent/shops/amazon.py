@@ -96,15 +96,19 @@ class AmazonShop(Shop):
 
         results = page.locator('[data-component-type="s-search-result"]')
         out: list[Product] = []
-        count = min(results.count(), top)
-        for i in range(count):
+        # Scan all result cards (not just the first `top`) so that skipping
+        # multi-seller listings still lets us collect `top` priced products.
+        for i in range(results.count()):
+            if len(out) >= top:
+                break
             r = results.nth(i)
             title = self._title(r)
             if not title:
                 continue
             price = self._price(r)
-            if not price and "see options" in (r.inner_text() or "").lower():
-                price = "multiple options — open link"
+            # Skip multi-seller "see options" listings that have no single price.
+            if not price:
+                continue
             rating = self.text_or_none(r.locator(".a-icon-alt"))
             url = self.abs_url(self.attr_or_none(r.locator("h2 a"), "href")
                                or self.attr_or_none(r.locator("a.a-link-normal"), "href"))
