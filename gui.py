@@ -91,7 +91,7 @@ class PriceCheckerApp:
 
     # ---- status helpers -------------------------------------------------
     def _set_session_status(self) -> None:
-        if os.path.exists(os.path.join(HERE, AUTH_FILE)):
+        if os.path.exists(AUTH_FILE):
             self.status.set("Session found. Ready to check prices.")
         else:
             self.status.set("No session yet — click 'Log in to Amazon' first.")
@@ -120,7 +120,7 @@ class PriceCheckerApp:
         if not query:
             self.status.set("Enter an item to check.")
             return
-        if not os.path.exists(os.path.join(HERE, AUTH_FILE)):
+        if not os.path.exists(AUTH_FILE):
             self.status.set("No session — click 'Log in to Amazon' first.")
             return
         self._busy(True)
@@ -154,11 +154,18 @@ class PriceCheckerApp:
 
     def _do_login(self) -> None:
         try:
-            # login.py prompts on its own console; run it in its own window so
-            # the user can complete the manual sign-in and press Enter there.
+            # The GUI itself runs under pythonw.exe (no console). login.py prints
+            # instructions and watches the browser, so launch it with the real
+            # python.exe in its own console window. It auto-detects sign-in and
+            # saves the session — no "press Enter" needed.
+            exe = sys.executable
+            if os.name == "nt" and os.path.basename(exe).lower() == "pythonw.exe":
+                console_exe = os.path.join(os.path.dirname(exe), "python.exe")
+                if os.path.exists(console_exe):
+                    exe = console_exe
             creationflags = subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0
             proc = subprocess.run(
-                [sys.executable, os.path.join(HERE, "login.py")],
+                [exe, os.path.join(HERE, "login.py")],
                 creationflags=creationflags,
             )
             if proc.returncode == 0:

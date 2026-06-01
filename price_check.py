@@ -31,8 +31,9 @@ from playwright.sync_api import sync_playwright
 
 load_dotenv()
 
+HERE = os.path.dirname(os.path.abspath(__file__))
 AMAZON_URL = os.environ.get("AMAZON_URL", "https://www.amazon.com").rstrip("/")
-AUTH_FILE = "auth_state.json"
+AUTH_FILE = os.path.join(HERE, "auth_state.json")
 # Be polite: small pause between page actions so we don't hammer the site.
 ACTION_DELAY_SECONDS = 1.0
 
