@@ -49,7 +49,8 @@ def login(shop_name: str, headless: bool = False, wait_for_user=None) -> bool:
       mid-login. Returns True if a session was saved.
     """
     shop = get_shop(shop_name)
-    with browser_page(shop.session_name, headless=headless, use_session=False) as (page, context):
+    with browser_page(shop.session_name, headless=headless, use_session=False,
+                       mobile=shop.mobile) as (page, context):
         page.goto(shop.base_url, wait_until="domcontentloaded")
 
         if not shop.auto_login_detection:
@@ -84,7 +85,7 @@ def login(shop_name: str, headless: bool = False, wait_for_user=None) -> bool:
 def search(shop_name: str, query: str, top: int = 3, headless: bool = False) -> List[Product]:
     shop = get_shop(shop_name)
     _require_session(shop)
-    with browser_page(shop.session_name, headless=headless) as (page, _context):
+    with browser_page(shop.session_name, headless=headless, mobile=shop.mobile) as (page, _context):
         return shop.search(page, query, top)
 
 
@@ -105,7 +106,8 @@ def compare(query: str, shop_names: List[str], top: int = 1,
             if shop.requires_login and not has_session(shop.session_name):
                 entry["error"] = f"Not logged in. Log in to {entry['label']} first."
             else:
-                with browser_page(shop.session_name, headless=headless) as (page, _ctx):
+                with browser_page(shop.session_name, headless=headless,
+                                  mobile=shop.mobile) as (page, _ctx):
                     entry["products"] = shop.search(page, query, top)
         except SessionExpired as exc:
             entry["error"] = str(exc)
@@ -118,7 +120,7 @@ def compare(query: str, shop_names: List[str], top: int = 1,
 def get_product(shop_name: str, url: str, headless: bool = False) -> Optional[Product]:
     shop = get_shop(shop_name)
     _require_session(shop)
-    with browser_page(shop.session_name, headless=headless) as (page, _context):
+    with browser_page(shop.session_name, headless=headless, mobile=shop.mobile) as (page, _context):
         return shop.get_product(page, url)
 
 
@@ -131,12 +133,12 @@ def add_to_cart(shop_name: str, url: str, *, confirm: bool = False,
     """
     shop = get_shop(shop_name)
     _require_session(shop)
-    with browser_page(shop.session_name, headless=headless) as (page, _context):
+    with browser_page(shop.session_name, headless=headless, mobile=shop.mobile) as (page, _context):
         return shop.add_to_cart(page, url, confirm=confirm)
 
 
 def review_cart(shop_name: str, headless: bool = False) -> CartReview:
     shop = get_shop(shop_name)
     _require_session(shop)
-    with browser_page(shop.session_name, headless=headless) as (page, _context):
+    with browser_page(shop.session_name, headless=headless, mobile=shop.mobile) as (page, _context):
         return shop.review_cart(page)

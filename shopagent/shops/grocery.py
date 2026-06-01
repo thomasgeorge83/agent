@@ -73,23 +73,79 @@ class _GroceryShop(Shop):
 
 @register_shop
 class FlipkartMinutesShop(_GroceryShop):
-    """Flipkart Minutes — Flipkart's quick grocery delivery."""
+    """Flipkart Minutes — Flipkart's quick grocery delivery.
+
+    Minutes is a mobile-only experience: on a desktop user-agent it falsely
+    reports "not available". We emulate a phone (``mobile = True``) and set a
+    delivery pincode (FLIPKART_PINCODE in .env) before searching.
+    """
 
     name = "flipkart-minutes"
     label = "Flipkart Minutes"
+    mobile = True
     base_url = os.environ.get("FLIPKART_URL", "https://www.flipkart.com").rstrip("/")
     # Flipkart's grocery results come through the GROCERY marketplace filter.
     search_path = "/search?marketplace=GROCERY&q="
+    pincode = os.environ.get("FLIPKART_PINCODE", "").strip()
 
     def check_blocked(self, page) -> None:
         if "captcha" in page.url.lower():
             raise BlockedBySite("Flipkart served a robot check. Try again later.")
+
+    def _set_pincode(self, page) -> None:
+        """Set the delivery pincode if the picker is shown.
+
+        The Minutes picker has an "Enter pincode" input plus a Submit button.
+        On the small mobile viewport the button can sit off-screen, so we fill
+        the input (dispatching events so the button enables) and click Submit
+        via JS, which is not affected by viewport position.
+        """
+        if not self.pincode:
+            return
+        picker = page.locator("input[placeholder='Enter pincode']")
+        if not picker.count():
+            return
+        page.evaluate(
+            """(pin) => {
+                const inp = document.querySelector("input[placeholder='Enter pincode']");
+                if (!inp) return;
+                const setter = Object.getOwnPropertyDescriptor(
+                    window.HTMLInputElement.prototype, 'value').set;
+                setter.call(inp, pin);
+                inp.dispatchEvent(new Event('input', {bubbles: true}));
+                inp.dispatchEvent(new Event('change', {bubbles: true}));
+            }""",
+            self.pincode,
+        )
+        page.wait_for_timeout(800)
+        page.evaluate(
+            """() => {
+                const btns = Array.from(document.querySelectorAll('button'))
+                    .filter(b => /submit/i.test(b.textContent || '') && !b.disabled);
+                if (btns.length) btns[0].click();
+            }"""
+        )
+        page.wait_for_timeout(5000)
 
     def search(self, page, query: str, top: int) -> list[Product]:
         url = f"{self.base_url}{self.search_path}{query.replace(' ', '%20')}"
         page.goto(url, wait_until="domcontentloaded")
         self.check_blocked(page)
         page.wait_for_timeout(4000)
+        # If a pincode picker appears, try to set our delivery pincode and reload.
+        if page.locator("input[placeholder='Enter pincode']").count():
+            self._set_pincode(page)
+            page.goto(url, wait_until="domcontentloaded")
+            page.wait_for_timeout(4000)
+            # If still on the picker, the pincode didn't stick from automation.
+            # It reliably persists when set during login, so guide the user there.
+            if page.locator("input[placeholder='Enter pincode']").count():
+                raise BlockedBySite(
+                    "Flipkart Minutes is asking for a delivery pincode. Click "
+                    "'Log in to platforms', and on the Flipkart Minutes browser "
+                    "set/confirm your pincode before pressing Enter — it then "
+                    "persists for searches."
+                )
         self._assert_serviceable(page)
         return self._parse_results(page, top)
 

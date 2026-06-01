@@ -48,6 +48,9 @@ class Shop:
     #: the login flow waits for the user to confirm (press Enter) instead of
     #: auto-detecting, so the browser is never closed mid-login.
     auto_login_detection: bool = True
+    #: Emulate a phone for this shop. Some storefronts (e.g. Flipkart Minutes)
+    #: are mobile-only and serve a working page only to mobile user-agents.
+    mobile: bool = False
 
     @property
     def session_name(self) -> str:
