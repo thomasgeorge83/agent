@@ -77,11 +77,12 @@ Copy-Item .env.example .env
 
 ### Desktop app (easiest)
 
-Double-click **`Price Checker.bat`** to open the GUI. Pick a shop, type an item,
-click **Check Price**, and browse the matches as cards with a **thumbnail**,
-price and rating. Click **Details** on a card for a larger image and the
-product's feature bullets, or **Open in browser** to view the listing. First
-time for a shop, click **Log in** to do the one-time manual sign-in.
+Double-click **`Price Checker.bat`** to open the GUI. Type an item and click
+**Compare Prices** — it searches **every platform at once** and shows the results
+in **side-by-side columns**, one per platform, each with thumbnail, price and
+rating. Click **Details** on any result for a larger image and feature bullets,
+or **Open in browser** to view the listing. Use **Log in to platforms** once to
+sign in to the platforms that need it (each opens a browser, one at a time).
 
 ### Command line
 
