@@ -36,9 +36,11 @@ login.py / price_check.py / gui.py   thin entry points over the package
 it with `@register_shop`, and import it in `shops/__init__.py`. It then appears
 in the CLI (`--shop <name>`) and the GUI dropdown automatically.
 
-**Order actions** (`place_order`, `modify_order`, `cancel_order`) are defined on
-the base class but **refuse by default** (`ActionNotSupported`) and require an
-explicit `confirm=True`. They are intentionally not wired to spend money yet.
+**Cart actions** (`add_to_cart`, `review_cart`) add an item to your cart and read
+it back, but **stop at the cart — they never check out**. `add_to_cart` requires
+`confirm=True`. **Order actions** (`place_order`, `modify_order`, `cancel_order`)
+are defined on the base class but **refuse by default** (`ActionNotSupported`).
+Nothing in this project places an order or spends money.
 
 ## Setup
 
@@ -60,8 +62,10 @@ Copy-Item .env.example .env
 ### Desktop app (easiest)
 
 Double-click **`Price Checker.bat`** to open the GUI. Pick a shop, type an item,
-click **Check Price**, and see the top matches. First time for a shop, click
-**Log in** to do the one-time manual sign-in.
+click **Check Price**, and browse the matches as cards with a **thumbnail**,
+price and rating. Click **Details** on a card for a larger image and the
+product's feature bullets, or **Open in browser** to view the listing. First
+time for a shop, click **Log in** to do the one-time manual sign-in.
 
 ### Command line
 
@@ -75,6 +79,10 @@ python price_check.py "wireless mouse" --shop amazon --top 5
 python price_check.py "wireless mouse" --json       # machine-readable
 python price_check.py --url "https://www.amazon.com/dp/B0XXXXXXX"
 python price_check.py --list-shops                  # show available shops
+
+# Cart (NEVER places an order; stops at the cart for you to review)
+python cart.py review
+python cart.py add --url "https://www.amazon.com/dp/B0XXXXXXX" --confirm
 ```
 
 If a check later says the session is invalid/expired, just re-run
@@ -89,7 +97,8 @@ If a check later says the session is invalid/expired, just re-run
 | `shopagent/`      | Reusable core package (models, shops, agent).      |
 | `login.py`        | One-time manual login per shop; saves the session. |
 | `price_check.py`  | CLI: search/read a product and report its price.   |
-| `gui.py`          | Desktop GUI (Tkinter) with a shop dropdown.        |
+| `cart.py`         | CLI: add to cart / review cart (never orders).     |
+| `gui.py`          | Desktop GUI (Tkinter): cards, thumbnails, details. |
 | `Price Checker.bat` | Double-click launcher for the GUI.               |
 | `.env.example`    | Template config — copy to `.env`. No secrets.      |
 | `.gitignore`      | Keeps secrets, sessions, logs out of git.          |

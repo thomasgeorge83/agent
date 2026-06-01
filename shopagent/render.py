@@ -7,7 +7,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import List
 
-from .models import Product
+from .models import CartReview, Product
 
 
 def render_text(products: List[Product], label: str) -> str:
@@ -28,3 +28,19 @@ def render_text(products: List[Product], label: str) -> str:
 
 def render_json(products: List[Product]) -> str:
     return json.dumps([asdict(p) for p in products], indent=2, ensure_ascii=False)
+
+
+def render_cart(review: CartReview) -> str:
+    lines = ["Cart review — NO ORDER PLACED", "-" * 56]
+    if not review.items:
+        lines.append("Cart appears empty (or contents could not be read).")
+    for i, item in enumerate(review.items, 1):
+        lines.append(f"{i}. {item.title}")
+        if item.price:
+            lines.append(f"   Price   : {item.price}")
+        if item.quantity:
+            lines.append(f"   Quantity: {item.quantity}")
+    if review.subtotal:
+        lines.append(f"\nSubtotal: {review.subtotal}")
+    lines.append(f"\n{review.note}")
+    return "\n".join(lines)

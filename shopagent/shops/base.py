@@ -18,7 +18,7 @@ from typing import Optional
 from playwright.sync_api import TimeoutError as PWTimeout
 
 from ..errors import ActionNotSupported
-from ..models import OrderResult, Product
+from ..models import CartReview, OrderResult, Product
 from ..session import ACTION_DELAY_SECONDS
 
 
@@ -100,8 +100,27 @@ class Shop:
             f"{self.label or self.name}: fetching a product by URL is not supported yet."
         )
 
+    # ---- cart actions (no purchase; override to enable) ----------------
+    def add_to_cart(self, page, url: str, *, confirm: bool = False, **kwargs) -> CartReview:
+        """Add the product at ``url`` to the cart and read the cart back.
+
+        This must NOT place an order — it stops at the cart. Implementations
+        must refuse unless ``confirm`` is True.
+        """
+        raise ActionNotSupported(
+            f"{self.label or self.name}: adding to cart is not implemented yet."
+        )
+
+    def review_cart(self, page) -> CartReview:
+        """Read the current cart contents without changing anything."""
+        raise ActionNotSupported(
+            f"{self.label or self.name}: reviewing the cart is not implemented yet."
+        )
+
     # ---- state-changing actions (guarded; override to enable) ----------
     def place_order(self, page, url: str, *, confirm: bool = False, **kwargs) -> OrderResult:
+        # Intentionally NOT implemented. Placing an order spends real money and
+        # is deliberately out of scope until explicitly built and confirmed.
         raise ActionNotSupported(
             f"{self.label or self.name}: placing orders is not implemented yet."
         )

@@ -1,33 +1,40 @@
 """Desktop GUI for the shop agent.
 
-Double-click "Price Checker.bat" (or run `python gui.py` in the venv) to open a
-small window: pick a shop, type an item, click Check Price, and see title /
-price / rating / link for the top matches. Uses each shop's saved login session
-— no password is entered or stored here, and no account/personal data is logged.
+Double-click "Price Checker.bat" (or run `python gui.py` in the venv) to open the
+window: pick a shop, type an item, click Check Price, and browse the matches as
+cards with a thumbnail, price and rating. Click "Details" on any card to open a
+window with a larger image and the product's feature bullets.
 
-If you have not logged in to the selected shop yet (or its session expired), use
-the "Log in" button; it runs the one-time manual login in a real browser window.
+Uses each shop's saved login session — no password is entered or stored here,
+and no account/personal data is logged.
 """
 
+import io
 import os
 import queue
 import subprocess
 import sys
 import threading
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+import webbrowser
+from tkinter import ttk
+
+from PIL import Image, ImageTk
 
 from shopagent import (
     BlockedBySite,
     SessionExpired,
     ShopAgentError,
+    get_product,
     list_shops,
-    render_text,
     search,
 )
+from shopagent.images import fetch_image_bytes
 from shopagent.session import has_session
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+THUMB_SIZE = (96, 96)
+DETAIL_IMG_SIZE = (320, 320)
 
 
 class PriceCheckerApp:
@@ -35,12 +42,14 @@ class PriceCheckerApp:
         self.root = root
         self.queue: "queue.Queue[tuple[str, object]]" = queue.Queue()
         self.worker: threading.Thread | None = None
+        # Keep references to PhotoImage objects so Tk doesn't garbage-collect them.
+        self._images: list = []
 
         self.shops = list_shops()
         self.shop_labels = {s.label: s.name for s in self.shops}
 
         root.title("Online Shop Price Checker")
-        root.minsize(580, 440)
+        root.minsize(720, 540)
 
         main = ttk.Frame(root, padding=12)
         main.pack(fill="both", expand=True)
@@ -68,14 +77,12 @@ class PriceCheckerApp:
         opts = ttk.Frame(main)
         opts.grid(row=2, column=0, columnspan=3, sticky="w", pady=(8, 0))
         ttk.Label(opts, text="Results:").pack(side="left")
-        self.top_var = tk.IntVar(value=3)
+        self.top_var = tk.IntVar(value=4)
         ttk.Spinbox(opts, from_=1, to=10, width=4, textvariable=self.top_var).pack(
             side="left", padx=(4, 16)
         )
         self.show_browser = tk.BooleanVar(value=True)
-        ttk.Checkbutton(
-            opts, text="Show browser window", variable=self.show_browser
-        ).pack(side="left")
+        ttk.Checkbutton(opts, text="Show browser window", variable=self.show_browser).pack(side="left")
 
         # Row 3: buttons
         btns = ttk.Frame(main)
@@ -86,11 +93,20 @@ class PriceCheckerApp:
         self.login_btn.pack(side="left", padx=(8, 0))
         ttk.Button(btns, text="Clear", command=self.clear_results).pack(side="left", padx=(8, 0))
 
-        # Row 4: results
-        self.results = scrolledtext.ScrolledText(
-            main, wrap="word", height=14, state="disabled"
+        # Row 4: scrollable results area (cards)
+        self.canvas = tk.Canvas(main, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(main, orient="vertical", command=self.canvas.yview)
+        self.cards = ttk.Frame(self.canvas)
+        self.cards.bind(
+            "<Configure>", lambda _e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
-        self.results.grid(row=4, column=0, columnspan=3, sticky="nsew", pady=(10, 0))
+        self._card_window = self.canvas.create_window((0, 0), window=self.cards, anchor="nw")
+        self.canvas.bind(
+            "<Configure>", lambda e: self.canvas.itemconfigure(self._card_window, width=e.width)
+        )
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.canvas.grid(row=4, column=0, columnspan=2, sticky="nsew", pady=(10, 0))
+        self.scrollbar.grid(row=4, column=2, sticky="ns", pady=(10, 0))
         main.rowconfigure(4, weight=1)
 
         # Row 5: status bar
@@ -114,16 +130,10 @@ class PriceCheckerApp:
         else:
             self.status.set(f"{label}: no session yet — click 'Log in' first.")
 
-    def _write(self, text: str) -> None:
-        self.results.configure(state="normal")
-        self.results.insert("end", text + "\n")
-        self.results.see("end")
-        self.results.configure(state="disabled")
-
     def clear_results(self) -> None:
-        self.results.configure(state="normal")
-        self.results.delete("1.0", "end")
-        self.results.configure(state="disabled")
+        for child in self.cards.winfo_children():
+            child.destroy()
+        self._images.clear()
 
     def _busy(self, busy: bool) -> None:
         state = "disabled" if busy else "normal"
@@ -142,6 +152,7 @@ class PriceCheckerApp:
         if not has_session(shop):
             self.status.set(f"{self.shop_var.get()}: no session — click 'Log in' first.")
             return
+        self.clear_results()
         self._busy(True)
         self.status.set(f"Checking '{query}' at {self.shop_var.get()}…")
         top = max(1, min(10, self.top_var.get()))
@@ -154,11 +165,104 @@ class PriceCheckerApp:
     def _do_check(self, shop: str, query: str, top: int, headless: bool) -> None:
         try:
             products = search(shop, query, top=top, headless=headless)
-            self.queue.put(("result", (query, products)))
+            self.queue.put(("result", (shop, query, products)))
         except (SessionExpired, BlockedBySite, ShopAgentError) as exc:
             self.queue.put(("error", str(exc)))
-        except Exception as exc:  # keep the GUI alive on unexpected errors
+        except Exception as exc:
             self.queue.put(("error", f"Unexpected error: {exc}"))
+
+    # ---- result rendering ----------------------------------------------
+    def _add_card(self, shop: str, product) -> None:
+        card = ttk.Frame(self.cards, padding=8, relief="solid", borderwidth=1)
+        card.pack(fill="x", expand=True, padx=4, pady=4)
+        card.columnconfigure(1, weight=1)
+
+        thumb = ttk.Label(card)
+        thumb.grid(row=0, column=0, rowspan=4, sticky="n", padx=(0, 10))
+        self._load_thumb_async(thumb, product.image_url)
+
+        ttk.Label(card, text=product.title, wraplength=440, justify="left",
+                  font=("Segoe UI", 10, "bold")).grid(row=0, column=1, sticky="w")
+        ttk.Label(card, text=f"Price: {product.price or 'not shown'}").grid(
+            row=1, column=1, sticky="w")
+        if product.rating:
+            ttk.Label(card, text=f"Rating: {product.rating}").grid(row=2, column=1, sticky="w")
+
+        actions = ttk.Frame(card)
+        actions.grid(row=3, column=1, sticky="w", pady=(6, 0))
+        ttk.Button(actions, text="Details",
+                   command=lambda p=product: self.open_details(shop, p)).pack(side="left")
+        if product.url:
+            ttk.Button(actions, text="Open in browser",
+                       command=lambda u=product.url: webbrowser.open(u)).pack(side="left", padx=(6, 0))
+
+    def _load_thumb_async(self, label: ttk.Label, url) -> None:
+        def work():
+            data = fetch_image_bytes(url)
+            self.queue.put(("thumb", (label, data)))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _set_image(self, label, data, size) -> None:
+        if not data:
+            label.configure(text="(no image)")
+            return
+        try:
+            img = Image.open(io.BytesIO(data))
+            img.thumbnail(size)
+            photo = ImageTk.PhotoImage(img)
+            self._images.append(photo)  # prevent GC
+            label.configure(image=photo)
+        except Exception:
+            label.configure(text="(no image)")
+
+    # ---- details window -------------------------------------------------
+    def open_details(self, shop: str, product) -> None:
+        win = tk.Toplevel(self.root)
+        win.title(product.title[:60])
+        win.minsize(420, 420)
+        frame = ttk.Frame(win, padding=12)
+        frame.pack(fill="both", expand=True)
+
+        img_label = ttk.Label(frame, text="Loading image…")
+        img_label.pack()
+        # Show the image we already have, then fetch full details for features.
+        threading.Thread(
+            target=lambda: self.queue.put(("detail_img", (img_label, fetch_image_bytes(product.image_url)))),
+            daemon=True,
+        ).start()
+
+        ttk.Label(frame, text=product.title, wraplength=380, justify="left",
+                  font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(10, 0))
+        ttk.Label(frame, text=f"Price: {product.price or 'not shown'}").pack(anchor="w")
+        if product.rating:
+            extra = f" ({product.reviews_count})" if product.reviews_count else ""
+            ttk.Label(frame, text=f"Rating: {product.rating}{extra}").pack(anchor="w")
+
+        feat_box = ttk.LabelFrame(frame, text="Details", padding=8)
+        feat_box.pack(fill="both", expand=True, pady=(10, 0))
+        loading = ttk.Label(feat_box, text="Loading product details…")
+        loading.pack(anchor="w")
+
+        if product.url:
+            ttk.Button(frame, text="Open in browser",
+                       command=lambda: webbrowser.open(product.url)).pack(anchor="w", pady=(10, 0))
+
+        # Fetch richer details (features/availability) in the background.
+        if product.url:
+            threading.Thread(
+                target=self._do_details, args=(shop, product.url, feat_box, loading), daemon=True
+            ).start()
+        else:
+            loading.configure(text="No product URL to load details from.")
+
+    def _do_details(self, shop, url, feat_box, loading) -> None:
+        try:
+            full = get_product(shop, url, headless=not self.show_browser.get())
+            self.queue.put(("details", (feat_box, loading, full)))
+        except (SessionExpired, BlockedBySite, ShopAgentError) as exc:
+            self.queue.put(("details_err", (loading, str(exc))))
+        except Exception as exc:
+            self.queue.put(("details_err", (loading, f"Unexpected error: {exc}")))
 
     # ---- login ----------------------------------------------------------
     def start_login(self) -> None:
@@ -172,10 +276,6 @@ class PriceCheckerApp:
 
     def _do_login(self, shop: str) -> None:
         try:
-            # The GUI runs under pythonw.exe (no console). login.py prints
-            # instructions and watches the browser, so launch it with the real
-            # python.exe in its own console window. It auto-detects sign-in and
-            # saves the session — no "press Enter" needed.
             exe = sys.executable
             if os.name == "nt" and os.path.basename(exe).lower() == "pythonw.exe":
                 console_exe = os.path.join(os.path.dirname(exe), "python.exe")
@@ -199,18 +299,44 @@ class PriceCheckerApp:
             while True:
                 kind, payload = self.queue.get_nowait()
                 if kind == "result":
-                    query, products = payload
-                    self._write(render_text(products, query))
-                    self._write("")
+                    shop, query, products = payload
+                    if not products:
+                        ttk.Label(self.cards, text=f"No results for '{query}'.").pack(anchor="w")
+                    for product in products:
+                        self._add_card(shop, product)
                     self.status.set(f"Done — {len(products)} result(s) for '{query}'.")
                     self._busy(False)
+                elif kind == "thumb":
+                    label, data = payload
+                    self._set_image(label, data, THUMB_SIZE)
+                elif kind == "detail_img":
+                    label, data = payload
+                    self._set_image(label, data, DETAIL_IMG_SIZE)
+                    if not data:
+                        label.configure(text="(no image)")
+                elif kind == "details":
+                    feat_box, loading, full = payload
+                    loading.destroy()
+                    if full and full.availability:
+                        ttk.Label(feat_box, text=full.availability,
+                                  foreground="#0a6").pack(anchor="w", pady=(0, 4))
+                    feats = (full.features if full else None) or []
+                    if feats:
+                        for f in feats:
+                            ttk.Label(feat_box, text=f"• {f}", wraplength=380,
+                                      justify="left").pack(anchor="w")
+                    else:
+                        ttk.Label(feat_box, text="No feature details found.").pack(anchor="w")
+                elif kind == "details_err":
+                    loading, msg = payload
+                    loading.configure(text=msg)
                 elif kind == "login_done":
                     self._set_session_status()
                     self.status.set("Login saved. You can check prices now.")
                     self._busy(False)
                 elif kind == "error":
-                    self._write(str(payload))
-                    self._write("")
+                    ttk.Label(self.cards, text=str(payload), wraplength=600,
+                              foreground="#a00").pack(anchor="w", padx=4, pady=4)
                     self.status.set("There was a problem — see details above.")
                     self._busy(False)
         except queue.Empty:

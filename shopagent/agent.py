@@ -11,7 +11,7 @@ import time
 from typing import List, Optional
 
 from .errors import SessionExpired
-from .models import Product
+from .models import CartReview, Product
 from .session import browser_page, has_session, session_path
 from .shops import get_shop
 
@@ -65,3 +65,23 @@ def get_product(shop_name: str, url: str, headless: bool = False) -> Optional[Pr
     _require_session(shop.name)
     with browser_page(shop.name, headless=headless) as (page, _context):
         return shop.get_product(page, url)
+
+
+def add_to_cart(shop_name: str, url: str, *, confirm: bool = False,
+                headless: bool = False) -> CartReview:
+    """Add a product to the cart and read it back. Never places an order.
+
+    Requires ``confirm=True``. Uses a visible browser by default so you can see
+    exactly what happens.
+    """
+    shop = get_shop(shop_name)
+    _require_session(shop.name)
+    with browser_page(shop.name, headless=headless) as (page, _context):
+        return shop.add_to_cart(page, url, confirm=confirm)
+
+
+def review_cart(shop_name: str, headless: bool = False) -> CartReview:
+    shop = get_shop(shop_name)
+    _require_session(shop.name)
+    with browser_page(shop.name, headless=headless) as (page, _context):
+        return shop.review_cart(page)

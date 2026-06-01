@@ -23,9 +23,9 @@ from .errors import (
     ShopAgentError,
     UnknownShop,
 )
-from .models import OrderResult, Product
-from .agent import get_product, login, search
-from .render import render_json, render_text
+from .models import CartItem, CartReview, OrderResult, Product
+from .agent import add_to_cart, get_product, login, review_cart, search
+from .render import render_cart, render_json, render_text
 from .shops import get_shop, list_shops, register_shop
 from .shops.base import Shop
 
@@ -35,11 +35,16 @@ __all__ = [
     "SessionExpired",
     "ShopAgentError",
     "UnknownShop",
+    "CartItem",
+    "CartReview",
     "OrderResult",
     "Product",
+    "add_to_cart",
     "get_product",
     "login",
+    "review_cart",
     "search",
+    "render_cart",
     "render_json",
     "render_text",
     "get_shop",
