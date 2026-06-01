@@ -238,6 +238,7 @@ class AmazonNowShop(AmazonShop):
     name = "amazon-now"
     label = "Amazon Now"
     session_key = "amazon"  # share the regular Amazon session — no second login
+    comparable = False  # niche storefront; keep out of the Compare-All view
     base_url = os.environ.get("AMAZON_URL", "https://www.amazon.com").rstrip("/")
     search_url = os.environ.get("AMAZON_NOW_URL", f"{base_url}/now").rstrip("/")
     # Now is a single-page app with its own search box (no #twotabsearchtextbox).
@@ -303,6 +304,7 @@ class AmazonFreshShop(AmazonShop):
     name = "amazon-fresh"
     label = "Amazon Fresh"
     session_key = "amazon"  # share the regular Amazon session — no second login
+    comparable = False  # grocery storefront; keep out of the Compare-All view
     base_url = os.environ.get("AMAZON_URL", "https://www.amazon.com").rstrip("/")
     search_url = os.environ.get("AMAZON_FRESH_URL", f"{base_url}/fresh").rstrip("/")
 

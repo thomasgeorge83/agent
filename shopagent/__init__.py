@@ -32,7 +32,7 @@ from .errors import (
     UnknownShop,
 )
 from .models import CartItem, CartReview, OrderResult, Product
-from .agent import add_to_cart, get_product, login, review_cart, search, shop_has_session
+from .agent import add_to_cart, compare, get_product, login, review_cart, search, shop_has_session
 from .render import render_cart, render_json, render_text
 from .shops import get_shop, list_shops, register_shop
 from .shops.base import Shop
@@ -48,6 +48,7 @@ __all__ = [
     "OrderResult",
     "Product",
     "add_to_cart",
+    "compare",
     "get_product",
     "login",
     "review_cart",

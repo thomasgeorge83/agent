@@ -24,6 +24,7 @@ from PIL import Image, ImageTk
 from shopagent import (
     add_to_cart,
     BlockedBySite,
+    compare,
     render_cart,
     SessionExpired,
     ShopAgentError,
@@ -33,6 +34,7 @@ from shopagent import (
     shop_has_session,
 )
 from shopagent.images import fetch_image_bytes
+from shopagent.shops import get_shop
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 THUMB_SIZE = (96, 96)
@@ -91,6 +93,8 @@ class PriceCheckerApp:
         btns.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(10, 0))
         self.check_btn = ttk.Button(btns, text="Check Price", command=self.start_check)
         self.check_btn.pack(side="left")
+        self.compare_btn = ttk.Button(btns, text="Compare All", command=self.start_compare)
+        self.compare_btn.pack(side="left", padx=(8, 0))
         self.login_btn = ttk.Button(btns, text="Log in", command=self.start_login)
         self.login_btn.pack(side="left", padx=(8, 0))
         ttk.Button(btns, text="Clear", command=self.clear_results).pack(side="left", padx=(8, 0))
@@ -127,8 +131,12 @@ class PriceCheckerApp:
     def _set_session_status(self) -> None:
         shop = self._current_shop()
         label = self.shop_var.get()
-        if shop and shop_has_session(shop):
+        if not shop:
+            return
+        if shop_has_session(shop):
             self.status.set(f"{label}: session found. Ready to check prices.")
+        elif not get_shop(shop).requires_login:
+            self.status.set(f"{label}: public search — no login needed. Ready.")
         else:
             self.status.set(f"{label}: no session yet — click 'Log in' first.")
 
@@ -140,6 +148,7 @@ class PriceCheckerApp:
     def _busy(self, busy: bool) -> None:
         state = "disabled" if busy else "normal"
         self.check_btn.configure(state=state)
+        self.compare_btn.configure(state=state)
         self.login_btn.configure(state=state)
 
     # ---- price check ----------------------------------------------------
@@ -151,7 +160,7 @@ class PriceCheckerApp:
         if not query:
             self.status.set("Enter an item to check.")
             return
-        if not shop_has_session(shop):
+        if not shop_has_session(shop) and get_shop(shop).requires_login:
             self.status.set(f"{self.shop_var.get()}: no session — click 'Log in' first.")
             return
         self.clear_results()
@@ -170,6 +179,41 @@ class PriceCheckerApp:
             self.queue.put(("result", (shop, query, products)))
         except (SessionExpired, BlockedBySite, ShopAgentError) as exc:
             self.queue.put(("error", str(exc)))
+        except Exception as exc:
+            self.queue.put(("error", f"Unexpected error: {exc}"))
+
+    # ---- compare across platforms --------------------------------------
+    def start_compare(self) -> None:
+        if self.worker and self.worker.is_alive():
+            return
+        query = self.query_var.get().strip()
+        if not query:
+            self.status.set("Enter an item to compare.")
+            return
+        # Compare general-catalog shops (Amazon, Flipkart, …) — not the niche
+        # Amazon sub-storefronts. Include a shop if it has a session OR doesn't
+        # require login (e.g. Flipkart's search is public).
+        names = [s.name for s in self.shops if getattr(s, "comparable", True)]
+        usable = [n for n in names
+                  if shop_has_session(n) or not get_shop(n).requires_login]
+        if not usable:
+            self.status.set("Log in to at least one platform first (e.g. Amazon, Flipkart).")
+            return
+        logged_in = usable
+        self.clear_results()
+        self._busy(True)
+        self.status.set(f"Comparing '{query}' across {len(logged_in)} platform(s)…")
+        top = max(1, min(10, self.top_var.get()))
+        headless = not self.show_browser.get()
+        self.worker = threading.Thread(
+            target=self._do_compare, args=(query, logged_in, top, headless), daemon=True
+        )
+        self.worker.start()
+
+    def _do_compare(self, query: str, names: list, top: int, headless: bool) -> None:
+        try:
+            results = compare(query, names, top=top, headless=headless)
+            self.queue.put(("compare", (query, results)))
         except Exception as exc:
             self.queue.put(("error", f"Unexpected error: {exc}"))
 
@@ -199,6 +243,54 @@ class PriceCheckerApp:
                        command=lambda p=product: self.start_add_to_cart(shop, p)).pack(side="left", padx=(6, 0))
             ttk.Button(actions, text="Open in browser",
                        command=lambda u=product.url: webbrowser.open(u)).pack(side="left", padx=(6, 0))
+
+    def _render_comparison(self, query: str, results: dict) -> None:
+        """Render one column per platform, side by side, for the same query."""
+        wrap = ttk.Frame(self.cards)
+        wrap.pack(fill="both", expand=True, padx=4, pady=4)
+
+        ttk.Label(self.cards, text=f"Comparison for '{query}'",
+                  font=("Segoe UI", 11, "bold")).pack(anchor="w", padx=4)
+
+        for col, (name, entry) in enumerate(results.items()):
+            wrap.columnconfigure(col, weight=1, uniform="cmp")
+            column = ttk.Frame(wrap, padding=6, relief="solid", borderwidth=1)
+            column.grid(row=0, column=col, sticky="nsew", padx=4)
+
+            ttk.Label(column, text=entry.get("label", name),
+                      font=("Segoe UI", 10, "bold")).pack(anchor="w")
+
+            if entry.get("error"):
+                ttk.Label(column, text=entry["error"], wraplength=200,
+                          foreground="#a00", justify="left").pack(anchor="w", pady=(4, 0))
+                continue
+
+            products = entry.get("products") or []
+            if not products:
+                ttk.Label(column, text="No priced results.",
+                          foreground="#666").pack(anchor="w", pady=(4, 0))
+                continue
+
+            for product in products:
+                item = ttk.Frame(column)
+                item.pack(fill="x", pady=(8, 0))
+                thumb = ttk.Label(item)
+                thumb.pack(anchor="w")
+                self._load_thumb_async(thumb, product.image_url)
+                ttk.Label(item, text=product.title, wraplength=200,
+                          justify="left").pack(anchor="w")
+                ttk.Label(item, text=product.price or "not shown",
+                          font=("Segoe UI", 10, "bold"),
+                          foreground="#0a6").pack(anchor="w")
+                if product.rating:
+                    ttk.Label(item, text=product.rating, foreground="#666").pack(anchor="w")
+                row = ttk.Frame(item)
+                row.pack(anchor="w", pady=(2, 0))
+                if product.url:
+                    ttk.Button(row, text="Add to Cart",
+                               command=lambda s=name, p=product: self.start_add_to_cart(s, p)).pack(side="left")
+                    ttk.Button(row, text="Open",
+                               command=lambda u=product.url: webbrowser.open(u)).pack(side="left", padx=(4, 0))
 
     def _load_thumb_async(self, label: ttk.Label, url) -> None:
         def work():
@@ -369,6 +461,12 @@ class PriceCheckerApp:
                 elif kind == "details_err":
                     loading, msg = payload
                     loading.configure(text=msg)
+                elif kind == "compare":
+                    query, results = payload
+                    self._render_comparison(query, results)
+                    ok = sum(1 for e in results.values() if e.get("products"))
+                    self.status.set(f"Compared '{query}' across {len(results)} platform(s); {ok} with results.")
+                    self._busy(False)
                 elif kind == "cart":
                     review = payload
                     self._busy(False)

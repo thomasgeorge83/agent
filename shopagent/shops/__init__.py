@@ -8,6 +8,7 @@ then import it below so it registers on startup.
 from .registry import get_shop, list_shops, register_shop
 
 # Import built-in shops so their @register_shop decorators run.
-from . import amazon  # noqa: F401  (registers AmazonShop)
+from . import amazon  # noqa: F401  (registers Amazon, Amazon Fresh, Amazon Now)
+from . import flipkart  # noqa: F401  (registers FlipkartShop)
 
 __all__ = ["get_shop", "list_shops", "register_shop"]

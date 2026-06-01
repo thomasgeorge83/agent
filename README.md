@@ -5,10 +5,14 @@ A modular browser-automation toolkit (Python + Playwright) that signs in to
 checking prices, with order actions stubbed out for future work. The design
 makes adding more shops a one-file job.
 
-Shops available: **Amazon**, **Amazon Fresh** (groceries), and **Amazon Now**
-(quick-commerce). Fresh and Now reuse your regular Amazon login (no second
-sign-in) and are **delivery-location gated** — they only return products where
-the service is available for your account, and otherwise report that clearly.
+Shops available: **Amazon**, **Amazon Fresh** (groceries), **Amazon Now**
+(quick-commerce), and **Flipkart**. Fresh and Now reuse your regular Amazon
+login (no second sign-in) and are **delivery-location gated**. Flipkart's search
+is public, so price-checking it needs no login.
+
+**Compare All:** the GUI has a *Compare All* button that searches the same item
+across the general-catalog platforms (Amazon, Flipkart, …) and shows the results
+**side by side**, one column per platform, each with image, price and rating.
 
 > Security rules for this repo live in [CLAUDE.md](CLAUDE.md). In short: no
 > passwords in code, secrets via git-ignored files only, no personal data in

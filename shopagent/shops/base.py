@@ -34,6 +34,13 @@ class Shop:
     #: shop's name to share one login across storefronts (e.g. Amazon Now
     #: reuses the "amazon" session). None = use ``name``.
     session_key: str = ""
+    #: Whether this shop is a general catalog included in "Compare All".
+    #: Sub-storefronts like Amazon Fresh/Now set this False so the comparison
+    #: stays apples-to-apples across full-catalog platforms.
+    comparable: bool = True
+    #: Whether a saved login session is required to search. Some sites (e.g.
+    #: Flipkart) expose public search, so price-checking works without login.
+    requires_login: bool = True
 
     @property
     def session_name(self) -> str:

@@ -25,10 +25,11 @@ def shop_has_session(shop_name: str) -> bool:
     return has_session(get_shop(shop_name).session_name)
 
 
-def _require_session(session_name: str) -> None:
-    if not has_session(session_name):
+def _require_session(shop) -> None:
+    """Ensure a session exists, unless the shop allows login-free searching."""
+    if shop.requires_login and not has_session(shop.session_name):
         raise SessionExpired(
-            f"No saved session for '{session_name}'. Log in to it first."
+            f"No saved session for '{shop.label or shop.name}'. Log in to it first."
         )
 
 
@@ -61,14 +62,41 @@ def login(shop_name: str, headless: bool = False) -> bool:
 
 def search(shop_name: str, query: str, top: int = 3, headless: bool = False) -> List[Product]:
     shop = get_shop(shop_name)
-    _require_session(shop.session_name)
+    _require_session(shop)
     with browser_page(shop.session_name, headless=headless) as (page, _context):
         return shop.search(page, query, top)
 
 
+def compare(query: str, shop_names: List[str], top: int = 1,
+            headless: bool = False) -> "dict[str, dict]":
+    """Search the same query across several shops for side-by-side comparison.
+
+    Returns ``{shop_name: {"label", "products", "error"}}``. A shop that has no
+    session or errors out is reported via its ``error`` field rather than
+    aborting the whole comparison, so the UI can still show the others.
+    """
+    results: dict[str, dict] = {}
+    for name in shop_names:
+        entry: dict = {"label": name, "products": [], "error": None}
+        try:
+            shop = get_shop(name)
+            entry["label"] = shop.label or name
+            if shop.requires_login and not has_session(shop.session_name):
+                entry["error"] = f"Not logged in. Log in to {entry['label']} first."
+            else:
+                with browser_page(shop.session_name, headless=headless) as (page, _ctx):
+                    entry["products"] = shop.search(page, query, top)
+        except SessionExpired as exc:
+            entry["error"] = str(exc)
+        except Exception as exc:
+            entry["error"] = str(exc)
+        results[name] = entry
+    return results
+
+
 def get_product(shop_name: str, url: str, headless: bool = False) -> Optional[Product]:
     shop = get_shop(shop_name)
-    _require_session(shop.session_name)
+    _require_session(shop)
     with browser_page(shop.session_name, headless=headless) as (page, _context):
         return shop.get_product(page, url)
 
@@ -81,13 +109,13 @@ def add_to_cart(shop_name: str, url: str, *, confirm: bool = False,
     exactly what happens.
     """
     shop = get_shop(shop_name)
-    _require_session(shop.session_name)
+    _require_session(shop)
     with browser_page(shop.session_name, headless=headless) as (page, _context):
         return shop.add_to_cart(page, url, confirm=confirm)
 
 
 def review_cart(shop_name: str, headless: bool = False) -> CartReview:
     shop = get_shop(shop_name)
-    _require_session(shop.session_name)
+    _require_session(shop)
     with browser_page(shop.session_name, headless=headless) as (page, _context):
         return shop.review_cart(page)
